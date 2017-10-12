@@ -8,6 +8,7 @@ import decimal
 import struct
 from time import sleep
 import multiprocessing
+import ConfigParser
 
 from MKFlowMessage import FBconvertLong # converter for long numbers to float and percent
 #cvd-client->rbBmSDP7fSKp87b5
@@ -17,7 +18,6 @@ class MKDatabase(object):
     connected = False
     ready = False
     messageID = -1
-    hostname = ""
     client = False
     recording = False
     recordingID = -1
@@ -25,36 +25,45 @@ class MKDatabase(object):
     storage_description = 50
     storage_values = 30
 
+    hostname = ""
+
+    # settings.cfg (see loadConfig)
+    dbUser = ""
+    dbPass = ""
+    dbHost = ""
+    dbName = ""
+    servername = ""
+
     def __init__(self, isClient = False):
         self.client = isClient
+        self.loadConfig()
         self.test()
         decimal.getcontext().prec = 2
+
+    def loadConfig(self):
+        config = ConfigParser.ConfigParser()
+        srcPath = os.path.dirname(os.path.realpath(__file__))
+        settingsFile = srcPath + '/../settings.cfg'
+        if not (os.path.exists(settingsFile)):
+            print "settings.cfg not found"
+            raise
+        config.read(settingsFile)
+        self.dbUser = config.get('Database', 'dbuser')
+        self.dbPass = config.get('Database', 'dbpass')
+        self.dbHost = config.get('Database', 'dbhost')
+        self.dbName = config.get('Database', 'dbname')
+        self.servername = config.get('Server', 'servername')
 
     def open(self):
         try:
             if not self.checkIP():
                 print "server unavailable"
                 raise
-            dbHost = self.getIP()
-            dbName = "cvd"
-            if self.client:
-                dbUser = "cvd-client"
-                dbPass = "rbBmSDP7fSKp87b5"
-            else:
-                if self.getHostname() == "lab117":
-                    dbUser = "cvd-server"
-                    dbPass = "uhNYLSHRn2f3LhmS"
-                elif self.getHostname() == "uk-work":
-                    dbUser = "cvd-uk-work"
-                    dbPass = "ARHFpNwB5ZbZQdqh"
-                else:
-                    dbUser = "cvd-other"
-                    dbPass = "bmF94vVXAB5yf7Mx"
             self.db = mysqlconnector.connect(
-                host = dbHost,
-                user = dbUser,
-                passwd = dbPass,
-                db = dbName,
+                host = self.dbHost,
+                user = self.dbUser,
+                passwd = self.dbPass,
+                db = self.dbName,
                 client_flag = CLIENT.FOUND_ROWS,
                 connect_timeout = 1
                 )
@@ -63,7 +72,7 @@ class MKDatabase(object):
             self.close()
             return False
         else:
-            print "connected as user: %s" % dbUser
+            print "connected as user: %s" % self.dbUser
             self.connected = True
             return True
     def close(self):
@@ -237,7 +246,7 @@ class MKDatabase(object):
         return self.hostname
 
     def isServer(self):
-        if (self.getHostname() == "lab117"):
+        if (self.getHostname() == self.servername):
             return True
         else:
             return False
@@ -246,7 +255,7 @@ class MKDatabase(object):
         if self.isServer():
             ip = 'localhost'
         else:
-            ip = "132.187.77.71"
+            ip = self.dbHost
         return ip
 
     def checkIP(self, ip = ""):
